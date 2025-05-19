@@ -68,5 +68,5 @@ def parquet(data_path):
     df.to_parquet(save_path)
 
 if __name__ == "__main__":
-    jsonl_path = "YOUR_JSONL_PATH"
-    parquet()
+    jsonl_path = "/cluster/home/lcattaneo/Allegro/data.jsonl"
+    parquet(jsonl_path)

@@ -246,3 +246,5 @@ backup_code/*
 
 output_videos
 scripts/
+pictures/
+logs/

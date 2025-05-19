@@ -1,0 +1,5 @@
+{"path": "expert_video_atlas.mp4", "num_frames": 999, "height": 1088, "width": 1920, "cap": "The bulky humanoid robot walks forward on a reflective checkerboard in side view."}
+{"path": "expert_video_talos.mp4", "num_frames": 999, "height": 1088, "width": 1920, "cap": "The humanoid robot walks forward on a reflective checkerboard in side view."}
+{"path": "expert_video_unitree.mp4", "num_frames": 998, "height": 720, "width": 1280, "cap": "The humanoid robot walks forward in side view."}
+{"path": "expert_video_unitreea1.mp4", "num_frames": 999, "height": 1088, "width": 1920, "cap": "The quadruped robot walks forward in side view."}
+{"path": "expert_video_unitreeh1.mp4", "num_frames": 999, "height": 1088, "width": 1920, "cap": "The humanoid robot walks forward on a reflective checkerboard in side view."}
