@@ -3,35 +3,36 @@
 #SBATCH --partition=gpu
 #SBATCH --time=24:00:00
 #SBATCH --nodes=1
-#SBATCH --ntasks=1
-#SBATCH --gpus=1
+#SBATCH --ntasks=2
+#SBATCH --gpus=2
 #SBATCH --gres=gpumem:80g
-#SBATCH --cpus-per-task=8
-#SBATCH --mem-per-cpu=15G
+#SBATCH --cpus-per-task=4 
+#SBATCH --mem-per-cpu=20G
 #SBATCH --output=logs/%x_%j_out.txt
 #SBATCH --error=logs/%x_%j_err.txt
 
-# 1 · toolchain
+# ── 1 · toolchain ───────────────────────────────────────────────────────────────
 module load stack/2024-06
 module load gcc/12.2.0
 module load cuda/12.4.1
 
-# 2 · conda command (no activation needed)
+# ── 2 · conda env ──────────────────────────────────────────────────────────────
 source "$HOME/miniconda3/etc/profile.d/conda.sh"
 
-# 3 · env vars
+# ── 3 · environment ────────────────────────────────────────────────────────────
 export CUDA_HOME=$(dirname "$(dirname "$(which nvcc)")")
 export LD_LIBRARY_PATH="$CUDA_HOME/lib64:$LD_LIBRARY_PATH"
 export TRITON_CACHE_DIR=/cluster/scratch/$USER/triton_cache
-export OMP_NUM_THREADS=1
-export MKL_NUM_THREADS=1
+export OMP_NUM_THREADS=2
+export MKL_NUM_THREADS=2
 export WANDB_API_KEY=d1777559d9715b506ab22a26ae90e9196d940a1e
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
-# 4 · launch
+# ── 4 · training launch ────────────────────────────────────────────────────────
 conda run -n allegro --no-capture-output \
   python -u -m accelerate.commands.launch \
     --num_machines 1 \
-    --num_processes 8 \
+    --num_processes 2 \
     --machine_rank 0 \
     --config_file config/accelerate_config.yaml \
     train_ti2v.py \
@@ -42,17 +43,16 @@ conda run -n allegro --no-capture-output \
       --text_encoder /cluster/scratch/lcattaneo/Allegro/text_encoder \
       --vae /cluster/scratch/lcattaneo/Allegro/vae \
       --vae_load_mode encoder_only \
-      --enable_ae_compile \
-      --dataset t2v \
+      --dataset ti2v \
       --data_dir /cluster/scratch/lcattaneo/Videos/ \
       --meta_file data.parquet \
       --sample_rate 2 \
-      --num_frames 88 \
+      --num_frames 64 \
       --max_height 720 \
       --max_width 1280 \
       --hw_thr 1.0 \
       --hw_aspect_thr 1.5 \
-      --dataloader_num_workers 8 \
+      --dataloader_num_workers 4 \
       --gradient_checkpointing \
       --train_batch_size 1 \
       --gradient_accumulation_steps 1 \
@@ -63,7 +63,6 @@ conda run -n allegro --no-capture-output \
       --mixed_precision bf16 \
       --report_to wandb \
       --allow_tf32 \
-      --enable_stable_fp32 \
       --model_max_length 512 \
       --cfg 0.1 \
       --checkpointing_steps 100 \

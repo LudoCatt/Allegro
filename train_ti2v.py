@@ -56,6 +56,7 @@ class ProgressInfo:
 def main(args):
 
     def preprocess_x_for_ti2v(x):
+        # Here they are getting the mask from the data
         x, mask = x[:, :3], x[:, 3:6]
         masked_x = x * (mask < 0.5)
         mask = mask[:, :1]
@@ -129,7 +130,9 @@ def main(args):
     vae.eval()
     vae.requires_grad_(False)
     if args.enable_ae_compile:
-        vae.encoder = torch.compile(vae.encoder, mode='max-autotune', fullgraph=True)
+        # vae.encoder = torch.compile(vae.encoder, mode='max-autotune', fullgraph=True)
+        vae.encoder = torch.compile(vae.encoder, mode="max-autotune", fullgraph=False, dynamic=True)
+    
     logger.info(f"VAE loaded from {args.vae} successfully")
     if args.vae_load_mode == "encoder_only":
         logger.info("VAE is loaded in encoder_only mode. It's normal that the decoder is not loaded.")
@@ -144,7 +147,7 @@ def main(args):
         latent_size_t = args.num_frames // args.vae_stride_t
 
     # create and freeze text encoder
-    text_encoder = T5EncoderModel.from_pretrained(args.text_encoder, torch_dtype=weight_dtype, low_cpu_mem_usage=True).to(accelerator.device)
+    text_encoder = T5EncoderModel.from_pretrained(args.text_encoder, torch_dtype=weight_dtype).to(accelerator.device)
     text_encoder.eval()
     text_encoder.requires_grad_(False)
     logger.info(f"Text encoder loaded from {args.text_encoder} successfully")
@@ -292,15 +295,38 @@ def main(args):
         collate_fn=Collate(args),
         batch_size=args.train_batch_size,
         num_workers=args.dataloader_num_workers,
+        prefetch_factor=2,
+        persistent_workers=True,
         drop_last=True, 
     )
     logger.info(f'{len(train_dataset)} samples loaded from {args.meta_file} successfully')
 
     # ===== Prepare training =====
     # Prepare everything with our `accelerator`.
-    model, optimizer, train_dataloader, lr_scheduler = accelerator.prepare(
-        model, optimizer, train_dataloader, lr_scheduler
+
+    class Combined(torch.nn.Module):
+        """
+        Wrap UNet + text-encoder so Accelerator sees a single model.
+        Its forward is never called; we only need the parameters to be
+        registered under the same parent module for DeepSpeed ZeRO-3.
+        """
+        def __init__(self, unet: torch.nn.Module, txt_enc: torch.nn.Module):
+            super().__init__()
+            self.unet = unet
+            self.txt_enc = txt_enc
+
+        def forward(self, *args, **kwargs):
+            raise RuntimeError("Don't call _Combined.forward()")
+
+    combined = Combined(model, text_encoder)
+
+    combined, optimizer, train_dataloader, lr_scheduler = accelerator.prepare(
+        combined, optimizer, train_dataloader, lr_scheduler
     )
+
+    model = combined.unet
+    text_encoder = combined.txt_enc
+
     if args.use_ema:
         ema_model.to(accelerator.device)
 
@@ -506,6 +532,7 @@ def main(args):
             cond = cond.reshape(B, N, L, -1)    # B 1 L D
 
             # Map input images to latent space + normalize latents
+            print("Second x shape: ", x.shape)
             x, masked_x, mask = preprocess_x_for_ti2v(x) # B 3*C T H W -> (B C T H W) * 3 
             x = torch.cat([x, masked_x, mask], dim=1) # (B C T H W) * 3 -> B 3*C T H W
 
@@ -566,7 +593,7 @@ if __name__ == "__main__":
     parser.add_argument("--enable_ae_compile", action='store_true')
     parser.add_argument("--tokenizer", type=str, default=None, help="Path to the Tokenizer model.")
     parser.add_argument("--text_encoder", type=str, default=None, help="Path to the Text Encoder model.")
-    parser.add_argument("--cache_dir", type=str, default='./cache_dir')
+    parser.add_argument("--cache_dir", type=str, default='/cluster/scratch/lcattaneo/cache_dir')
     parser.add_argument('--enable_stable_fp32', action='store_true')
     parser.add_argument("--gradient_checkpointing", action="store_true", help="Whether or not to use gradient checkpointing to save memory at the expense of slower backward pass.")
 
@@ -595,7 +622,7 @@ if __name__ == "__main__":
                             ' `--checkpointing_steps`, or `"latest"` to automatically select the last available checkpoint.'
                         ),
                         )
-    parser.add_argument("--logging_dir", type=str, default="logs",
+    parser.add_argument("--logging_dir", type=str, default="/cluster/scratch/lcattaneo/logs",
                         help=(
                             "[TensorBoard](https://www.tensorflow.org/tensorboard) log directory. Will default to"
                             " *output_dir/runs/**CURRENT_DATETIME_HOSTNAME***."

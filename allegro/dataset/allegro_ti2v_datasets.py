@@ -103,4 +103,5 @@ class AllegroTI2V_dataset(Allegro_dataset):
         )
         input_ids = text_tokens_and_mask['input_ids']
         cond_mask = text_tokens_and_mask['attention_mask']
+        print("Initial x shape: ", video.shape)
         return dict(pixel_values=video, input_ids=input_ids, cond_mask=cond_mask)
