@@ -25,7 +25,7 @@ export LD_LIBRARY_PATH="$CUDA_HOME/lib64:$LD_LIBRARY_PATH"
 export TRITON_CACHE_DIR=/cluster/scratch/$USER/triton_cache
 export OMP_NUM_THREADS=2
 export MKL_NUM_THREADS=2
-export WANDB_API_KEY=d1777559d9715b506ab22a26ae90e9196d940a1e
+export WANDB_API_KEY=...
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
 # ── 4 · training launch ────────────────────────────────────────────────────────
